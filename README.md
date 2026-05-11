@@ -1,8 +1,5 @@
 [![StepSecurity Maintained Action](https://raw.githubusercontent.com/step-security/maintained-actions-assets/main/assets/maintained-action-banner.png)](https://docs.stepsecurity.io/actions/stepsecurity-maintained-actions)
 
-[![Maintained by Bridgecrew.io](https://img.shields.io/badge/maintained%20by-bridgecrew.io-blueviolet)](https://bridge.dev/2WBms5Q)
-[![slack-community](https://img.shields.io/badge/Slack-4A154B?style=plastic&logo=slack&logoColor=white)](https://slack.bridgecrew.io/)
-
 # Checkov GitHub action
 
 This GitHub Action runs [Checkov](https://github.com/bridgecrewio/checkov) against infrastructure-as-code,
@@ -39,7 +36,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so follow-up steps can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
 
       - name: Checkov GitHub Action
         uses: step-security/checkov-action@v12
@@ -71,11 +68,11 @@ jobs:
     name: checkov-action
     steps:
       - name: Checkout repo
-        uses: actions/checkout@master
+        uses: actions/checkout@v6
 
       - name: Run Checkov action
         id: checkov
-        uses: step-security/checkov-action@master
+        uses: step-security/checkov-action@v12
         with:
           directory: example/
           file: example/tfplan.json # optional: provide the path for resource to be scanned. This will override the directory if both are provided.
@@ -115,14 +112,14 @@ jobs:
     name: checkov-image-scan
     steps:
       - name: Checkout repo
-        uses: actions/checkout@master
+        uses: actions/checkout@v6
 
       - name: Build the image
         run: docker build -t ${{ env.IMAGE_NAME }} ${{ env.IMAGE_PATH }}
 
       - name: Run Checkov action
         id: checkov
-        uses: step-security/checkov-action@master
+        uses: step-security/checkov-action@v12
         with:
           quiet: true # optional: display only failed checks
           soft_fail: true # optional: do not return an error code if there are failed checks
@@ -148,11 +145,11 @@ jobs:
     name: checkov-action
     steps:
       - name: Checkout repo
-        uses: actions/checkout@master
+        uses: actions/checkout@v6
 
       - name: Run Checkov action
         id: checkov
-        uses: step-security/checkov-action@master
+        uses: step-security/checkov-action@v12
         with:
           directory: .
           soft_fail: true
