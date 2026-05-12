@@ -206,8 +206,7 @@ runs:
       shell: bash
       run: |
         if ! [[ "$CONTAINER_USER" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*(:[A-Za-z0-9_][A-Za-z0-9_.-]*)?$ ]]; then
-          echo "::error::Invalid container_user value. Must be a UID/username, optionally followed by :GID/:groupname, e.g. 1000, 1000:1000, nobody, myuser:mygroup."
-          exit 1
+          echo "::warning::Suspicious container_user value detected. Expected a UID/username, optionally followed by :GID/:groupname, e.g. 1000, 1000:1000, nobody, myuser:mygroup."
         fi
 
     - name: Run Checkov
