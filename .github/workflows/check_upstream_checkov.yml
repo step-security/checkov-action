@@ -1,0 +1,114 @@
+name: Check Upstream Checkov Version
+
+on:
+  schedule:
+    # Weekly Monday 04:00 UTC — poll upstream bridgecrewio/checkov for new releases.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Detect new checkov version + propose PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read pinned versions from Dockerfile
+        id: pinned
+        run: |
+          pinned=$(grep -E '^ARG CHECKOV_VERSION=' Dockerfile | head -1 | cut -d= -f2)
+          echo "checkov=${pinned}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch latest checkov release tag
+        id: upstream
+        run: |
+          latest=$(curl -fsSL https://pypi.org/pypi/checkov/json | python3 -c "import sys,json;print(json.load(sys.stdin)['info']['version'])")
+          echo "checkov=${latest}" >> "$GITHUB_OUTPUT"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          if [ "${{ steps.pinned.outputs.checkov }}" = "${{ steps.upstream.outputs.checkov }}" ]; then
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+            echo "Pinned ${{ steps.pinned.outputs.checkov }} matches upstream. No action."
+          else
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+            echo "Upstream ${{ steps.upstream.outputs.checkov }} differs from pinned ${{ steps.pinned.outputs.checkov }}."
+          fi
+
+      - name: Re-vendor upstream entrypoint.sh with StepSecurity patch preserved
+        if: steps.compare.outputs.needs_update == 'true'
+        id: entrypoint_diff
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/bridgecrewio/checkov/main/github_action_resources/entrypoint.sh -o /tmp/upstream-entrypoint.sh
+
+          # Extract our StepSecurity subscription-check block from the current vendored copy.
+          # The block lives between the two marker comments and includes them.
+          awk '/# --- StepSecurity subscription check \(begin\)/,/# --- StepSecurity subscription check \(end\)/' entrypoint.sh > /tmp/ss-block.sh
+          if [ ! -s /tmp/ss-block.sh ]; then
+            echo "::error::Could not find StepSecurity subscription-check markers in entrypoint.sh"
+            exit 1
+          fi
+
+          # Build the new entrypoint: shebang from upstream, then our block, then rest of upstream.
+          {
+            head -1 /tmp/upstream-entrypoint.sh
+            echo ""
+            cat /tmp/ss-block.sh
+            echo ""
+            tail -n +2 /tmp/upstream-entrypoint.sh
+          } > /tmp/new-entrypoint.sh
+          chmod +x /tmp/new-entrypoint.sh
+
+          if diff -q /tmp/new-entrypoint.sh entrypoint.sh > /dev/null; then
+            echo "entrypoint_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "entrypoint_changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo 'diff<<EOF'
+              diff -u entrypoint.sh /tmp/new-entrypoint.sh || true
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+          fi
+          cp /tmp/new-entrypoint.sh entrypoint.sh
+          chmod +x entrypoint.sh
+
+      - name: Re-vendor problem matcher JSONs
+        if: steps.compare.outputs.needs_update == 'true'
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/bridgecrewio/checkov/main/github_action_resources/checkov-problem-matcher.json -o checkov-problem-matcher.json
+          curl -fsSL https://raw.githubusercontent.com/bridgecrewio/checkov/main/github_action_resources/checkov-problem-matcher-softfail.json -o checkov-problem-matcher-softfail.json
+
+      - name: Bump CHECKOV_VERSION in Dockerfile
+        if: steps.compare.outputs.needs_update == 'true'
+        run: |
+          sed -i "s|^ARG CHECKOV_VERSION=.*|ARG CHECKOV_VERSION=${{ steps.upstream.outputs.checkov }}|" Dockerfile
+
+      - name: Open PR
+        if: steps.compare.outputs.needs_update == 'true'
+        uses: step-security/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: upstream-sync/checkov-${{ steps.upstream.outputs.checkov }}
+          commit-message: "chore: bump checkov to ${{ steps.upstream.outputs.checkov }}"
+          title: "chore: bump checkov to ${{ steps.upstream.outputs.checkov }}"
+          body: |
+            Upstream `bridgecrewio/checkov` released **${{ steps.upstream.outputs.checkov }}**
+            (was pinned to **${{ steps.pinned.outputs.checkov }}**).
+
+            **Entrypoint changed:** `${{ steps.entrypoint_diff.outputs.entrypoint_changed }}`
+
+            ${{ steps.entrypoint_diff.outputs.entrypoint_changed == 'true' && format('<details><summary>entrypoint.sh diff</summary>{0}{1}{0}</details>', '\n```diff\n', steps.entrypoint_diff.outputs.diff) || '' }}
+
+            After merge, `build_image.yml` will publish a new hardened image. Once Trivy gate passes and image digest is available, update `action.yml`'s `image:` reference accordingly.
+          labels: |
+            upstream-sync
+            dependencies

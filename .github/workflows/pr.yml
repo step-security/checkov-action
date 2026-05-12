@@ -26,3 +26,4 @@ jobs:
         with:
           directory: terragoat
           soft_fail: true  # don't want to fail the step, because of found findings
+
