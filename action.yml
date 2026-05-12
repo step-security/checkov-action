@@ -153,111 +153,54 @@ branding:
   icon: 'shield'
   color: 'purple'
 runs:
-  using: 'composite'
-  steps:
-    - name: Subscription check
-      env:
-        REPO_PRIVATE: ${{ github.event.repository.private }}
-      run: |
-        # validate subscription status
-        UPSTREAM="bridgecrewio/checkov-action"
-        ACTION_REPO="${GITHUB_ACTION_REPOSITORY:-}"
-        DOCS_URL="https://docs.stepsecurity.io/actions/stepsecurity-maintained-actions"
-
-        echo ""
-        echo -e "\033[1;36mStepSecurity Maintained Action\033[0m"
-        echo "Secure drop-in replacement for $UPSTREAM"
-        if [ "$REPO_PRIVATE" = "false" ]; then
-          echo -e "\033[32m✓ Free for public repositories\033[0m"
-        fi
-        echo -e "\033[36mLearn more:\033[0m $DOCS_URL"
-        echo ""
-
-        if [ "$REPO_PRIVATE" != "false" ]; then
-          SERVER_URL="${GITHUB_SERVER_URL:-https://github.com}"
-
-          if [ "$SERVER_URL" != "https://github.com" ]; then
-            BODY=$(printf '{"action":"%s","ghes_server":"%s"}' "$ACTION_REPO" "$SERVER_URL")
-          else
-            BODY=$(printf '{"action":"%s"}' "$ACTION_REPO")
-          fi
-
-          API_URL="https://agent.api.stepsecurity.io/v1/github/$GITHUB_REPOSITORY/actions/maintained-actions-subscription"
-
-          RESPONSE=$(curl --max-time 3 -s -w "%{http_code}" \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -d "$BODY" \
-            "$API_URL" -o /dev/null) && CURL_EXIT_CODE=0 || CURL_EXIT_CODE=$?
-
-          if [ $CURL_EXIT_CODE -ne 0 ]; then
-            echo "Timeout or API not reachable. Continuing to next step."
-          elif [ "$RESPONSE" = "403" ]; then
-            echo -e "::error::\033[1;31mThis action requires a StepSecurity subscription for private repositories.\033[0m"
-            echo -e "::error::\033[31mLearn how to enable a subscription: $DOCS_URL\033[0m"
-            exit 1
-          fi
-        fi
-      shell: bash
-
-    - name: Validate container_user
-      env:
-        CONTAINER_USER: ${{ inputs.container_user }}
-      shell: bash
-      run: |
-        if ! [[ "$CONTAINER_USER" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*(:[A-Za-z0-9_][A-Za-z0-9_.-]*)?$ ]]; then
-          echo "::warning::Suspicious container_user value detected. Expected a UID/username, optionally followed by :GID/:groupname, e.g. 1000, 1000:1000, nobody, myuser:mygroup."
-        fi
-
-    - name: Run Checkov
-      uses: docker://ghcr.io/bridgecrewio/checkov:3.2.527
-      env:
-        API_KEY_VARIABLE: ${{ inputs.api-key }}
-        GITHUB_PAT: ${{ inputs.github_pat }}
-        TFC_TOKEN: ${{ inputs.tfc_token }}
-        TF_REGISTRY_TOKEN: ${{ inputs.tf_registry_token }}
-        VCS_USERNAME: ${{ inputs.vcs_username }}
-        VCS_BASE_URL: ${{ inputs.vcs_base_url }}
-        VCS_TOKEN: ${{ inputs.vcs_token }}
-        BITBUCKET_TOKEN: ${{ inputs.bitbucket_token }}
-        BITBUCKET_USERNAME: ${{ inputs.bitbucket_username }}
-        BITBUCKET_APP_PASSWORD: ${{ inputs.bitbucket_app_password }}
-        PRISMA_API_URL: ${{ inputs.prisma-api-url }}
-        CKV_VALIDATE_SECRETS: ${{ inputs.ckv_validate_secrets }}
-      with:
-        args: >-
-          --user ${{ inputs.container_user }}
-        file: ${{ inputs.file }}
-        directory: ${{ inputs.directory }}
-        check: ${{ inputs.check }}
-        skip_check: ${{ inputs.skip_check }}
-        compact: ${{ inputs.compact }}
-        quiet: ${{ inputs.quiet }}
-        soft_fail: ${{ inputs.soft_fail }}
-        output_bc_ids: ${{ inputs.output_bc_ids }}
-        use_enforcement_rules: ${{ inputs.use_enforcement_rules }}
-        skip_results_upload: ${{ inputs.skip_results_upload }}
-        framework: ${{ inputs.framework }}
-        skip_framework: ${{ inputs.skip_framework }}
-        external_checks_dirs: ${{ inputs.external_checks_dirs }}
-        external_checks_repos: ${{ inputs.external_checks_repos }}
-        output_format: ${{ inputs.output_format }}
-        output_file_path: ${{ inputs.output_file_path }}
-        download_external_modules: ${{ inputs.download_external_modules }}
-        enable_secrets_scan_all_files: ${{ inputs.enable_secrets_scan_all_files }}
-        log_level: ${{ inputs.log_level }}
-        config_file: ${{ inputs.config_file }}
-        baseline: ${{ inputs.baseline }}
-        hard_fail_on: ${{ inputs.hard_fail_on }}
-        soft_fail_on: ${{ inputs.soft_fail_on }}
-        docker_image: ${{ inputs.docker_image }}
-        dockerfile_path: ${{ inputs.dockerfile_path }}
-        var_file: ${{ inputs.var_file }}
-        repo_root_for_plan_enrichment: ${{ inputs.repo_root_for_plan_enrichment }}
-        deep_analysis: ${{ inputs.deep_analysis }}
-        policy_metadata_filter: ${{ inputs.policy_metadata_filter }}
-        policy_metadata_filter_exception: ${{ inputs.policy_metadata_filter_exception }}
-        skip_path: ${{ inputs.skip_path }}
-        skip_cve_package: ${{ inputs.skip_cve_package }}
-        skip_download: ${{ inputs.skip_download }}
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.file }}
+    - ${{ inputs.directory }}
+    - ${{ inputs.check }}
+    - ${{ inputs.skip_check }}
+    - ${{ inputs.compact }}
+    - ${{ inputs.quiet }}
+    - ${{ inputs.soft_fail }}
+    - ${{ inputs.output_bc_ids }}
+    - ${{ inputs.use_enforcement_rules }}
+    - ${{ inputs.skip_results_upload }}
+    - ${{ inputs.framework }}
+    - ${{ inputs.skip_framework }}
+    - ${{ inputs.external_checks_dirs }}
+    - ${{ inputs.external_checks_repos }}
+    - ${{ inputs.output_format }}
+    - ${{ inputs.output_file_path }}
+    - ${{ inputs.download_external_modules }}
+    - ${{ inputs.enable_secrets_scan_all_files }}
+    - ${{ inputs.log_level }}
+    - ${{ inputs.config_file }}
+    - ${{ inputs.baseline }}
+    - ${{ inputs.hard_fail_on }}
+    - ${{ inputs.soft_fail_on }}
+    - ${{ inputs.docker_image }}
+    - ${{ inputs.dockerfile_path }}
+    - ${{ inputs.var_file }}
+    - ${{ inputs.repo_root_for_plan_enrichment }}
+    - ${{ inputs.deep_analysis }}
+    - ${{ inputs.policy_metadata_filter }}
+    - ${{ inputs.policy_metadata_filter_exception }}
+    - ${{ inputs.skip_path }}
+    - ${{ inputs.skip_cve_package }}
+    - ${{ inputs.skip_download }}
+    - "--user ${{ inputs.container_user }}"
+  env:
+    API_KEY_VARIABLE: ${{ inputs.api-key }}
+    GITHUB_PAT: ${{ inputs.github_pat }}
+    TFC_TOKEN: ${{ inputs.tfc_token }}
+    TF_REGISTRY_TOKEN: ${{ inputs.tf_registry_token }}
+    VCS_USERNAME: ${{ inputs.vcs_username }}
+    VCS_BASE_URL: ${{ inputs.vcs_base_url }}
+    VCS_TOKEN: ${{ inputs.vcs_token }}
+    BITBUCKET_TOKEN: ${{ inputs.bitbucket_token }}
+    BITBUCKET_USERNAME: ${{ inputs.bitbucket_username }}
+    BITBUCKET_APP_PASSWORD: ${{ inputs.bitbucket_app_password }}
+    PRISMA_API_URL: ${{ inputs.prisma-api-url }}
+    CKV_VALIDATE_SECRETS: ${{ inputs.ckv_validate_secrets }}
 
